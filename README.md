@@ -4,7 +4,11 @@
 
 It is a personal alternative to Claude Code: a Textual TUI plus a scriptable print mode, with Claude-Code-compatible skills, hooks and MCP servers. It is built for mixed hardware, with a workstation serving the model and a lighter machine such as a Raspberry Pi 5 running the client. Hosted OpenAI-compatible providers (OpenAI, OpenRouter, DeepSeek) can be selected per session when wanted.
 
-<!-- screenshots -->
+![Chat view mid-task: the agent reading files and listing the project](screenshots/chat-tool-calls.png)
+
+> Screenshots show a throwaway demo project (a small to-do API) with a local llama3.1 model.
+
+![Swarm mode: two agents working in parallel panes](screenshots/swarm.png)
 
 ## Features
 
