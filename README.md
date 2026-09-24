@@ -1,47 +1,63 @@
 # MundaForge
 
-> An AI coding agent that runs entirely on your own infrastructure — no cloud dependency, no data exposure.
+**A terminal AI coding agent that runs against your own model server.** MundaForge reads, writes and runs code in a project directory using models served by Ollama, llama.cpp or llama-swap, so source code and prompts stay on your own network.
 
-![Status](https://img.shields.io/badge/status-beta-yellow)
+It is a personal alternative to Claude Code: a Textual TUI plus a scriptable print mode, with Claude-Code-compatible skills, hooks and MCP servers. It is built for mixed hardware, with a workstation serving the model and a lighter machine such as a Raspberry Pi 5 running the client. Hosted OpenAI-compatible providers (OpenAI, OpenRouter, DeepSeek) can be selected per session when wanted.
 
-## Overview
+<!-- screenshots -->
 
-MundaForge is a terminal-based AI coding assistant built for developers and teams who cannot or will not send source code to third-party APIs. It orchestrates one or more AI models — local or hosted — to autonomously read, write, and reason about code, while keeping every token inside the operator's own environment. It was designed from the ground up to run on heterogeneous hardware, from a powerful workstation down to a Raspberry Pi acting as a thin client.
+## Features
 
-## Key Capabilities
+- **Terminal UI.** Chat view, sidebar, a four-row status bar (model, branch, mode, context usage, compression stats, tool-call tally, active goal) and a command palette.
+- **Goal mode.** `/goal <description>` breaks a task into subtasks and works through them one by one. Progress is saved after each subtask, so an interrupted run can resume, and the agent can queue questions for you to answer later instead of stopping.
+- **Plan mode.** A read-only mode for exploring and planning; `shift+tab` switches to editing.
+- **Swarm mode.** Several agents, each with its own model and task, run in parallel in a split-pane view.
+- **Undo and redo per turn.** Every file the agent writes is checkpointed, grouped by turn, so `/undo` takes back exactly what the agent changed without touching your own uncommitted work.
+- **Checks after every write.** After writing a file, MundaForge runs the project's own checker for that language (ruff, tsc, go vet, shellcheck and similar) and feeds errors back so the agent fixes them in the same turn.
+- **Context compression.** Tool output such as file reads, test logs and search results is compressed in-process with Headroom before it reaches the model: ML-based on x86_64, structural on ARM64.
+- **Code search.** Text search plus semantic search over a local index. Python is chunked one definition at a time, and dense and keyword results are fused.
+- **Sessions per directory.** Each project directory resumes its previous conversation automatically; sessions can be searched, rewound and forked.
+- **Persistent shell.** Shell commands run in a tmux session per agent, which keeps state (working directory, environment, running processes) between agent turns.
+- **Skills, hooks and MCP.** Markdown skills in Claude Code's format, shell hooks around tool calls and session boundaries (subject to the same safety checks), and MCP servers configured in the same JSON shape as Claude Code. Built-in skills cover git workflow, code review, Playwright/Cypress E2E testing, a sigma.js site map of a web app's routes, user documentation, and upgrading MundaForge itself.
+- **Model awareness.** `mundaforge models` lists installed models with size, RAM warnings and what is currently loaded. The model picker marks which models actually emit tool calls, and per-model speed is logged from real sessions.
+- **Print mode for scripts.** `-p` runs one task, prints the answer and exits with a meaningful code (done, failed, needed a human), with plain, JSON or streamed JSON output.
+- **Explicit safety.** Shell commands ask for confirmation by default. A YOLO mode skips routine confirmations, but destructive commands (`rm`, `dd`, `mkfs` and similar) are always confirmed, and safety settings can't be overridden by a project's config.
 
-- **Fully private by default** — all model inference runs on the operator's own hardware; no source code, prompts, or outputs leave the network unless explicitly configured otherwise
-- **Multi-model parallel execution** — launch several AI agents simultaneously, each with a different model and a different task, and watch them work side by side in a split-pane interface
-- **Flexible AI provider support** — switch between locally hosted models and major cloud providers (OpenAI, OpenRouter, DeepSeek, and others) per session, with no code changes
-- **Persistent, context-aware sessions** — each project directory retains its own conversation history across restarts; the agent picks up exactly where it left off
-- **Automatic context compression** — large tool outputs (file reads, test logs, search results) are compressed before reaching the model, reducing token consumption by 60–95% and enabling much longer working sessions
-- **Configurable safety controls** — destructive operations (file writes, shell commands, git commits) require explicit confirmation by default; a permissive mode is available for trusted automation contexts
-- **Extensible skill system** — reusable, Markdown-defined instruction sets can be scoped per user or per project, allowing teams to encode domain knowledge the agent applies automatically
+## Tech stack
 
-## Tech Highlights
+Python · Textual · Click · httpx · Headroom · Ollama · llama.cpp / llama-swap · OpenAI-compatible APIs · MCP · tmux · pytest
 
-| Layer | Technology |
-|-------|------------|
-| Language | Python |
-| Interface | Terminal UI (interactive, keyboard-driven) |
-| AI runtime | Local models via Ollama; cloud via OpenAI-compatible APIs |
-| Context management | Automatic compression with ML-based summarisation |
-| Shell integration | Persistent shell sessions (state survives between agent turns) |
-| Hardware targets | x86_64 workstations and ARM64 single-board computers |
-| Test coverage | 166 automated tests across core agent logic, tools, and UI |
+## How it works
 
-## Screenshots
+```
+  client (workstation or Raspberry Pi 5)         model server
+  ┌───────────────────────────────────┐        ┌──────────────────┐
+  │ TUI / print mode                  │        │ Ollama, llama.cpp│
+  │   agent loop ── tool registry     │ ─────► │ or llama-swap    │
+  │     filesystem, shell, git,       │  chat  └──────────────────┘
+  │     search, tasks, MCP tools      │
+  │   headroom.compress() on output   │
+  │   checkpoints · sessions · index  │
+  └───────────────────────────────────┘
+```
 
-> *Screenshots available on request.*
+The agent loop sends the conversation to the model, runs the tool calls it gets back, compresses each tool result and appends it to the history. Configuration is layered: package defaults, then user config, then project config (excluding safety settings), then environment variables. `/init` writes an `AGENTS.md` for the repository that later sessions load, and cross-session corrections accumulate there.
 
-## Status & Availability
+## Design principles
 
-MundaForge is in active beta. Core capabilities — autonomous file editing, shell execution, git operations, multi-model swarm mode, session continuity, and context compression — are fully implemented and covered by automated tests. The project is in daily use as a private development tool and is being refined toward a stable v1.0 release. Licensing for commercial deployment or white-label adaptation is available on request.
+- **Your server, your data.** The default provider is a local model server; hosted providers are opt-in per session.
+- **Measure before changing.** Retrieval, chunking and recommendation thresholds are tuned against logged sessions and recorded measurements, and the roadmap records the evidence behind each decision.
+- **Errors the model can act on.** A mistyped tool argument gets a reply listing the arguments the tool accepts, not a Python traceback.
+- **Destructive means confirmed.** No flag removes the confirmation for destructive commands.
 
-## Interested?
+## Availability
 
-This is a proprietary project by **Munda Plus d.o.o.**
-The full codebase is available for review upon request.
+The source code is not public. MundaForge is in beta and used daily as a private development tool. Available for licensing, custom deployment or white-label adaptation. Get in touch via [munda.si](https://www.munda.si/#contact).
 
-📧 marko@munda.si
-🌐 [munda.si](https://www.munda.si)
+## License
+
+Proprietary. © 2026 MUNDA PLUS d.o.o. All rights reserved. See [LICENSE](LICENSE).
+
+## Author
+
+Built by [Marko Munda](https://www.munda.si/) · [Munda Plus](https://github.com/MundaPlus)
